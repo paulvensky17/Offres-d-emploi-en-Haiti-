@@ -1,0 +1,525 @@
+---
+title: "Offres d'emploi en Haïti : Analyse d'un échantillon de 959 annonces"
+author: "Jean Ralph M. Paul"
+format:
+  html:
+    theme: flatly
+    toc: true
+    toc-depth: 4
+server: shiny
+
+---
+
+<style>
+/* CSS global */
+body {
+  font-size: 16px;
+}
+
+p {
+  text-align: justify;
+}
+
+/* Titres */
+h1 {
+  color: #1B4F72;
+}
+
+h3 {
+  color: #A50F15;
+}
+
+h4 {
+  color: #1B4F72;
+}
+
+</style>
+
+
+```{r}
+#| include: false
+#| message: false
+
+library(tidyverse)
+library(plotly)
+library(shiny)
+
+```
+
+```{r}
+#| include: false
+#| message: false
+#| warning: false
+
+# cleaning 
+
+offres_emploi_haiti <- read_csv("~/Portfolio/Analyse marché travail Haitien/offres_emploi_haiti.csv")
+
+offres_emploi_haiti<-
+  offres_emploi_haiti%>%
+  mutate(domaine = ifelse(domaine=="Sciences de l’Education","Sciences de l’Éducation",domaine))
+# 
+
+offres_emploi_haiti<-
+  offres_emploi_haiti%>%
+  mutate(diplome_requis = ifelse(diplome_requis=="Non précisé" | is.na(diplome_requis),"Non précisé",diplome_requis))
+
+# 
+offres_emploi_haiti<-
+  offres_emploi_haiti%>%
+  mutate(
+    type_contrat =case_when(
+      type_contrat %in% c("CDI","Indéterminée","Indéterminée / renouvelable sur performance") ~ "CDI",
+      type_contrat =="CDD" ~ "CDD",
+      is.na(type_contrat)~ "non renseigné"
+    )
+  )
+
+##
+offres_emploi_haiti <- 
+  offres_emploi_haiti %>%
+  mutate(classe_experience = case_when(
+    is.na(annee_experience) ~ "non renseigné",
+    annee_experience < 2    ~ "Moins de 2 ans",
+    between(annee_experience,2,5) ~ "2–5 ans",
+    between(annee_experience,6,8) ~ "6–8 ans",
+    annee_experience > 8    ~ "plus de 8 ans"
+  ))
+
+write.csv(x = offres_emploi_haiti,file = "offres_emploi_vers_serv.csv")
+```
+
+
+
+### Introduction
+Ce projet propose une analyse descriptive d’un ensemble d’offres d’emploi scrapées sur internet. L’analyse décrit, dans un premier temps, les caractéristiques générales des offres, telles que leur répartition par domaine d’activité, type de contrat, niveau de diplôme requis et années d’expérience demandées. Ces premières analyses permettent de dresser un panorama global des données collectées.
+
+Dans un second temps, l’analyse examine les croisements entre le domaine d’activité et l’expérience demandée, ainsi qu’entre le domaine d’activité et le niveau de diplôme requis. Ces analyses visent à mettre en évidence les différences de profils recherchés selon les domaines d'activité.
+
+L’étude s’appuie sur un échantillon d’environ 960 offres d’emploi collectées en ligne. Les résultats doivent donc être interprétés avec prudence, car ils ne constituent pas une représentation exhaustive du marché du travail, mais reflètent les caractéristiques des offres observées au sein de cet échantillon spécifique.
+
+### Données et méthodologie 
+Ce projet s’inscrit dans une démarche visant à évaluer le potentiel des modèles de langage (LLM) pour la création de données structurées à partir de sources non structurées, dans un contexte caractérisé par une faible disponibilité de données exploitables, comme c’est le cas en Haïti.
+
+Les données analysées proviennent d’offres d’emploi publiées sur le site [JobPaw](https://www.jobpaw.com) . Les pages web des annonces ont été collectées par requêtes HTTP à l’aide du module Requests, puis analysées avec Beautiful Soup afin d’extraire le contenu textuel brut des offres.
+
+Le texte brut de chaque offre a ensuite été transmis à un modèle de langage via l’API OpenAI, à l’aide d’un prompt structuré. Ce dernier visait à extraire des informations clés telles que le titre du poste, le domaine d’activité, le niveau de diplôme requis, les années d’expérience demandées, le type de contrat et les compétences recherchées.
+
+Les sorties générées par le modèle ont ensuite été agrégées et converties en tableaux de données exploitables pour l’analyse. L’objectif principal de cette démarche est d’illustrer comment les LLM peuvent être mobilisés comme outil de structuration de données textuelles issues du web, et de montrer leur potentiel pour la production de jeux de données analytiques dans des contextes où les données structurées sont rares ou inexistantes.
+
+### Principaux résultats
+
+#### Répartition des offres d’emploi par domaine d’activité
+
+Les données montrent que la majorité des offres d’emploi de l’échantillon sont concentrées dans les secteurs du management, de la gestion, de la finance, de la comptabilité et du commerce, qui représentent ensemble environ 37 % des offres analysées.
+
+Viennent ensuite le domaine de la santé et des professions médicales (17 %), ainsi que celui des sciences humaines et sociales (14 %), qui occupent également une place significative dans les annonces collectées.
+
+À l’inverse, les offres relevant des sciences informatiques apparaissent relativement rares dans l’échantillon, avec seulement 4 % des offres recensées.
+
+```{r}
+#| message: false
+#| warning: false
+
+df_plot <- offres_emploi_haiti %>%
+  count(domaine, sort = TRUE) %>%
+  slice_head(n = 10) %>%
+  mutate(domaine = fct_reorder(domaine, n))
+
+plot_ly(
+  data = df_plot,
+  type = "treemap",
+  labels = ~domaine,
+  parents = "",
+  values = ~n,
+  textinfo = "label+value+percent parent",
+  hovertemplate = paste(
+    "<b>Domaine :</b> %{label}<br>",
+    "<b>Nombre d’offres :</b> %{value}<br>",
+    "<b>Part :</b> %{percentParent}<extra></extra>"
+  ),
+  marker = list(
+    colorscale = "Reds",
+    line = list(width = 1, color = "white")
+  )
+) %>%
+  layout(
+    title = list(
+      text = "Répartition des offres d’emploi par domaine d’activité",
+      x = 0.02,
+      xanchor = "left"
+    ),
+    margin = list(l = 10, r = 10, t = 60, b = 10),
+    height = 420,
+    paper_bgcolor = "white",
+    font = list(
+      family = "Arial",
+      size = 12,
+      color = "#2C3E50"
+    )
+  )
+
+```
+
+
+#### Répartition des offres d’emploi par type de contrat 
+L’analyse des types de contrat montre que la majorité des offres de l’échantillon correspondent à des contrats à durée déterminée (CDD), qui représentent environ 50,1 % des annonces collectées. Les contrats à durée indéterminée (CDI) constituent quant à eux 44,2 % des offres.
+
+Cette répartition suggère une prépondérance des formes d’emploi temporaires au sein des offres analysées, ce qui peut refléter un certain degré de précarité de l’emploi dans le contexte haïtien.
+
+```{r}
+#| warning: false
+
+df_plot <- offres_emploi_haiti %>%
+  count(type_contrat, sort = TRUE) %>%
+  slice_head(n = 6) %>%
+  mutate(type_contrat = fct_reorder(type_contrat, n))
+
+plot_ly(
+  data = df_plot,
+  labels = ~type_contrat,
+  values = ~n,
+  type = "pie",
+  hole = 0.55,
+  textinfo = "label+percent",
+  insidetextorientation = "radial",
+  marker = list(
+    colors = RColorBrewer::brewer.pal(n = nrow(df_plot), name = "Reds")
+  ),
+  hovertemplate = paste(
+    "<b>Type de contrat :</b> %{label}<br>",
+    "<b>Nombre d’offres :</b> %{value}<br>",
+    "<b>Part :</b> %{percent}<extra></extra>"
+  )
+) %>%
+  layout(
+    title = list(
+      text = "Répartition des offres d'emploi par type de contrat",
+      x = 0.5
+    ),
+    showlegend = TRUE,
+    font = list(size = 11),
+    height = 350
+  )
+```
+
+#### Niveau de diplôme requis 
+L’analyse du niveau de diplôme requis montre que la majorité des offres de l’échantillon exigent un niveau Licence, qui représente environ 51 % des annonces.
+
+Les offres requérant un niveau Master sont nettement moins nombreuses (16 %), tandis que celles exigeant un niveau Doctorat restent marginales (2,5 %).
+
+Cette distribution suggère que la plupart des offres ciblent des profils disposant d’un niveau de qualification intermédiaire, tandis que les postes nécessitant des qualifications académiques élevées demeurent relativement rares dans les offres analysées.
+
+```{r}
+#| warning: false
+
+df_plot <- offres_emploi_haiti %>%
+  count(diplome_requis, sort = TRUE) %>%
+  mutate(
+    pct = n / sum(n),
+    diplome_requis = fct_reorder(diplome_requis, pct)
+  )
+
+plot_ly(
+  data = df_plot,
+  x = ~pct,
+  y = ~diplome_requis,
+  type = "bar",
+  orientation = "h",
+  text = ~scales::percent(pct, accuracy = 0.1),
+  textposition = "outside",
+  marker = list(
+    color = "#A50F15",
+    line = list(color = "#1B4F72", width = 0.5)
+  ),
+  hovertemplate = paste(
+    "<b>Diplôme requis :</b> %{y}<br>",
+    "<b>Part des offres :</b> %{x:.1%}<extra></extra>"
+  )
+) %>%
+  layout(
+    title = list(
+      text = "Répartition des offres d'emploi par niveau de diplôme requis (en %)",
+      x = 0.02,
+      xanchor = "left"
+    ),
+    xaxis = list(
+      title = "Part des offres",
+      tickformat = ".0%",
+      zeroline = FALSE,
+      showgrid = TRUE,
+      gridcolor = "rgba(200,200,200,0.3)"
+    ),
+    yaxis = list(
+      title = "",
+      categoryorder = "total ascending"
+    ),
+    font = list(size = 11),
+    margin = list(l = 120, r = 40, t = 60, b = 40),
+    height = 350,
+    paper_bgcolor = "white",
+    plot_bgcolor = "white"
+  )
+
+```
+
+####  Expérience requise 
+
+L’analyse des années d’expérience requises montre que la grande majorité des offres de l’échantillon ciblent des profils disposant de 2 à 5 ans d’expérience, correspondant à des profils dits confirmés.
+
+À l’inverse, le recrutement de profils juniors (0 à 2 ans d’expérience) apparaît très limité, avec seulement 6,26 % des offres analysées. Les profils seniors, disposant de 6 ans d’expérience ou plus, représentent quant à eux près de 14 % des annonces.
+
+Cette distribution suggère une préférence marquée des employeurs pour des profils déjà expérimentés. Les opportunités d’entrée sur le marché du travail restent ainsi relativement restreintes sur l’échantillon étudié.
+```{r}
+#| warning: false
+
+palette_rouge <- c(
+  "#FEE5D9",
+  "#FCAE91",
+  "#FB6A4A",
+  "#DE2D26",
+  "#A50F15"
+)
+
+
+df_plot <- offres_emploi_haiti %>%
+  count(classe_experience, sort = TRUE) %>%
+  mutate(pct = n / sum(n))
+
+plot_ly(
+  data = df_plot,
+  labels = ~classe_experience,
+  values = ~n,
+  type = "pie",
+  hole = 0.6,
+  textinfo = "label+percent",
+  textposition = "outside",
+  marker = list(
+    colors = palette_rouge,
+    line = list(color = "white", width = 2)
+  ),
+  hovertemplate = paste(
+    "<b>Classe d’expérience :</b> %{label}<br>",
+    "<b>Nombre d’offres :</b> %{value}<br>",
+    "<b>Part :</b> %{percent}<extra></extra>"
+  )
+) %>%
+  layout(
+    title = list(
+      text = "Répartition des offres par niveau d’expérience",
+      x = 0.5
+    ),
+    showlegend = FALSE,
+    margin = list(l = 20, r = 20, t = 60, b = 20),
+    height = 350,
+    paper_bgcolor = "white",
+    font = list(family = "Arial", size = 12, color = "#2C3E50")
+  )
+
+
+
+```
+
+#### Domaine et expérience requise
+
+Bien que les offres requérant 2 à 5 ans d’expérience soient majoritaires dans l’ensemble des domaines, le niveau d’expérience exigé varie sensiblement selon le secteur d’activité.
+
+Par exemple, dans le domaine des sciences de l’ingénieur, seules 2 % des offres s’adressent à des profils disposant de moins de 2 ans d’expérience, contre 6,26 % pour l’ensemble des offres analysées. Dans le domaine des sciences informatiques, aucune offre de l’échantillon ne cible explicitement des profils juniors.
+
+À l’inverse, les domaines de la santé et des professions médicales se caractérisent par une exigence plus élevée en matière d’expérience : 17 % des offres requièrent 6 à 8 ans d’expérience, contre 7,51 % pour l'ensemble des domaines.
+
+Ces résultats mettent en évidence des logiques de recrutement différenciées selon les secteurs.
+
+
+```{r}
+top_domaines <- offres_emploi_haiti %>%
+  count(domaine, sort = TRUE) %>%
+  slice_head(n = 10) %>%
+  pull(domaine)
+
+```
+
+
+```{r}
+#| panel: sidebar
+
+selectInput(
+        inputId = "domaine",
+        label = "Choix du domaine :",
+        choices = top_domaines,
+        selected = top_domaines[1]
+      )
+```
+
+```{r}
+#| panel: fill
+plotOutput("plot")
+
+```
+
+```{r}
+#| context: server
+
+library(tidyverse)
+library(plotly)
+library(shiny)
+library(readr)
+
+# Chargement des données (GLOBAL, hors context server)
+offres_emploi_haiti <-read_csv("offres_emploi_vers_serv.csv")
+
+ordre_experience <- c(
+  "Moins de 2 ans",
+  "2–5 ans",
+  "6–8 ans",
+  "plus de 8 ans",
+  "non renseigné"
+)
+
+data_reactive <- shiny::reactive({
+  shiny::req(input$domaine)
+
+  offres_emploi_haiti |>
+    dplyr::filter(domaine == input$domaine)
+})
+
+
+output$plot <- shiny::renderPlot({
+
+  df_plot <- data_reactive()
+  df_plot$classe_experience <- factor(
+    df_plot$classe_experience,
+    levels = ordre_experience
+  )
+
+  ggplot2::ggplot(
+    df_plot,
+    ggplot2::aes(x = classe_experience)
+  ) +
+    ggplot2::geom_bar(
+      fill = "#A50F15",
+      width = 0.6
+    ) +
+    ggplot2::geom_text(
+      ggplot2::aes(
+        label = scales::percent(
+          after_stat(count / sum(count)),
+          accuracy = 1
+        )
+      ),
+      stat = "count",
+      vjust = -0.4,
+      size = 4,
+      color = "black"
+    ) +
+    ggplot2::labs(
+      title = "Niveau d'expérience requis par domaine",
+      subtitle = paste("Domaine :", input$domaine),
+      x = NULL,
+      y = "offres"
+    ) +
+    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold"),
+      plot.subtitle = ggplot2::element_text(color = "gray40"),
+      axis.text.x = ggplot2::element_text(face = "bold"),
+      panel.grid.major.x = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank()
+    )
+})
+
+```
+
+
+#### Domaine et niveau de diplôme requis 
+À l’instar de l’expérience requise, le niveau de diplôme exigé varie sensiblement selon le domaine d’activité.
+
+Dans le domaine du transport et de la logistique, les exigences en matière de diplôme apparaissent relativement faibles : 24 % des offres requièrent un niveau Licence, contre 51,2 % pour l’ensemble des domaines, et seulement 4 % exigent un niveau Master, contre 16 % pour tous domaines confondus.
+
+À l’inverse, les diplômes de niveau Master et Doctorat sont proportionnellement plus demandés dans les offres relevant des sciences de l’éducation, ainsi que dans celles du domaine de la santé et des professions médicales, comparativement à l’ensemble des secteurs.
+
+Ces résultats mettent en évidence des exigences académiques différenciées selon les domaines.
+```{r}
+#| panel: sidebar
+
+selectInput(
+        inputId = "domaine2",
+        label = "Choix du domaine :",
+        choices = top_domaines,
+        selected = top_domaines[1]
+      )
+```
+
+```{r}
+#| panel: fill
+plotOutput("plot2")
+
+```
+
+
+```{r}
+#| context: server
+
+library(tidyverse)
+library(plotly)
+library(shiny)
+library(readr)
+
+# Chargement des données (GLOBAL, hors context server)
+offres_emploi_haiti <-read_csv("offres_emploi_vers_serv.csv")
+
+
+data_reactive2 <- shiny::reactive({
+  shiny::req(input$domaine2)
+
+  offres_emploi_haiti |>
+    dplyr::filter(domaine == input$domaine2)
+})
+
+
+output$plot2 <- shiny::renderPlot({
+
+  df_plot <- data_reactive2()
+
+  ggplot2::ggplot(
+    df_plot,
+    ggplot2::aes(x = diplome_requis)
+  ) +
+    ggplot2::geom_bar(
+      fill = "#A50F15",
+      width = 0.6
+    ) +
+    ggplot2::geom_text(
+      ggplot2::aes(
+        label = scales::percent(
+          after_stat(count / sum(count)),
+          accuracy = 1
+        )
+      ),
+      stat = "count",
+      vjust = -0.4,
+      size = 4,
+      color = "black"
+    ) +
+    ggplot2::labs(
+      title = "Niveau de diplôme requis par domaine",
+      subtitle = paste("Domaine :", input$domaine2),
+      x = NULL,
+      y = "offres"
+    ) +
+    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold"),
+      plot.subtitle = ggplot2::element_text(color = "gray40"),
+      axis.text.x = ggplot2::element_text(face = "bold"),
+      panel.grid.major.x = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank()
+    )
+})
+
+```
+
+### Conclusion
+En conclusion, cette analyse met en évidence une prépondérance des formes d’emploi temporaires en Haïti, un recrutement très limité de profils juniors (0 à 2 ans d’expérience), ainsi que des exigences hétérogènes selon les domaines, tant en matière d’expérience que de niveau de diplôme.
+
+Au-delà des résultats descriptifs, ce travail illustre surtout le potentiel des modèles de langage comme outil de création de données structurées dans des contextes où les données officielles restent rares ou peu accessibles.
