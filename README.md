@@ -1,4 +1,5 @@
 # Offres-d-emploi-en-Haiti-
+[Consulter la doc officielle](https://fykyg6-paul-ralph.shinyapps.io/app_doc_emploi/)
 Ce projet propose une analyse descriptive du marché du travail en Haïti, basée sur un échantillon d'offres d'emploi collectées en ligne. Il s'inscrit dans une démarche visant à évaluer le potentiel des modèles de langage (LLM) pour la création de données structurées à partir de sources non structurées, dans des contextes où les données officielles sont rares.
 
 ## Objectif
